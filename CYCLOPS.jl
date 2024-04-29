@@ -3909,6 +3909,50 @@ function Jammalamadka_Circular_CorrelationMeasures(rphases::T,sphases::T) where 
 	JR =Jammalamadka_Rank_Circular_Correlations(rphases,sphases)
 	return [J, JU, JR]
 end
+
+
+
+function smoothness_metric(eigen_data, my_model, Fit_Output; covariates = true)
+
+	if covariates
+		cov_adj_eigengenes = CYCLOPS.CovariatesEncodingOH(eigen_data, my_model) #covariate adjusted eigengenes
+		cov_adj_eigengenes= mapreduce(permutedims, vcat, cov_adj_eigengenes)'
+		decomp = svd(cov_adj_eigengenes)
+		l_eigendata = decomp.Vt
+	else
+		l_eigendata = eigen_data[1:my_model.o, :]
+	end
+	
+	
+	estimated_phaselist = Fit_Output[:,:Phase]
+	
+	estimated_phaselist1s=mod.(estimated_phaselist,2*pi)
+	use_order_c=sortperm(estimated_phaselist1s)
+	use_order_l=sortperm(vec(l_eigendata[1,:]))
+	
+	#new_phaselist=vec(estimated_phaselist1s[use_order_c])
+	circ_eigendata=l_eigendata[:,use_order_c]
+	lin_eigendata=l_eigendata[:,use_order_l]
+	nsamp = size(l_eigendata)[2]
+	
+	function circ_diff(data::Array{Float32,2})
+		circd=hcat(diff(data, dims = 2),data[:,1]-data[:,end])
+		circd
+	end
+	
+	gdiffs				=circ_diff(circ_eigendata)
+	gdiffs2				=gdiffs .* gdiffs
+	gdiffsm				=sqrt.(sum(gdiffs2,dims = 1))
+	num					=sum(gdiffsm)/nsamp
+	
+	gdiffs				=diff(lin_eigendata,dims = 2)
+	gdiffs2				=gdiffs .* gdiffs
+	gdiffsm				=sqrt.(sum(gdiffs2, dims = 1))
+	denom				=sum(gdiffsm)/(nsamp-1)
+	measure_eigen		=num/denom
+	return measure_eigen
+	
+end
 ############
 # Plotting #
 ############
